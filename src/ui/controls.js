@@ -14,7 +14,14 @@ import {
   setDelayTime,
   setDelayFeedback,
 } from '../audio/effects.js'
-import { stateToUrlHash } from '../state/persistence.js'
+import {
+  stateToUrlHash,
+  loadUserPresets,
+  saveUserPreset,
+  deleteUserPreset,
+  exportPresetsJson,
+  importPresetsJson,
+} from '../state/persistence.js'
 import {
   DRUM_NAMES,
   DRUM_TRIGGERS,
@@ -315,19 +322,17 @@ export function renderDrumControls(container) {
     pad.textContent = DRUM_LABELS[name]
     pad.dataset.drum = name
 
-    pad.addEventListener('mousedown', (e) => {
+    pad.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
       e.preventDefault()
       DRUM_TRIGGERS[name]()
       pad.classList.add('drum-pad-active')
     })
-    pad.addEventListener('mouseup', () => pad.classList.remove('drum-pad-active'))
-    pad.addEventListener('mouseleave', () => pad.classList.remove('drum-pad-active'))
-    pad.addEventListener('touchstart', (e) => {
-      e.preventDefault()
-      DRUM_TRIGGERS[name]()
-      pad.classList.add('drum-pad-active')
-    }, { passive: false })
-    pad.addEventListener('touchend', () => pad.classList.remove('drum-pad-active'))
+    const releasePad = () => pad.classList.remove('drum-pad-active')
+    pad.addEventListener('pointerup', releasePad)
+    pad.addEventListener('pointerleave', releasePad)
+    pad.addEventListener('pointercancel', releasePad)
+    pad.addEventListener('contextmenu', (e) => e.preventDefault())
 
     col.appendChild(pad)
 
@@ -419,7 +424,7 @@ export function renderPresetsAndRecording(container) {
   row.className = 'presets-row'
   section.appendChild(row)
 
-  // Botones de presets
+  // Botones de presets hardcoded
   const presetsGroup = document.createElement('div')
   presetsGroup.className = 'presets-group'
 
@@ -436,6 +441,140 @@ export function renderPresetsAndRecording(container) {
   }
 
   row.appendChild(presetsGroup)
+
+  // ── Biblioteca de presets del usuario ────────────────────────────────────
+  const userPresetsRow = document.createElement('div')
+  userPresetsRow.className = 'presets-row user-presets-row'
+  section.appendChild(userPresetsRow)
+
+  const userPresetsGroup = document.createElement('div')
+  userPresetsGroup.className = 'presets-group user-presets-group'
+
+  const userPresetsLabel = document.createElement('span')
+  userPresetsLabel.className = 'presets-label'
+  userPresetsLabel.textContent = 'Mis presets:'
+  userPresetsGroup.appendChild(userPresetsLabel)
+
+  const userPresetsList = document.createElement('div')
+  userPresetsList.className = 'user-presets-list'
+  userPresetsGroup.appendChild(userPresetsList)
+
+  const saveUserBtn = document.createElement('button')
+  saveUserBtn.textContent = '+ Guardar actual'
+  saveUserBtn.title = 'Guarda los parámetros del synth como preset'
+  userPresetsGroup.appendChild(saveUserBtn)
+
+  userPresetsRow.appendChild(userPresetsGroup)
+
+  // Botones de export/import
+  const ioGroup = document.createElement('div')
+  ioGroup.className = 'presets-group user-presets-io'
+
+  const exportBtn = document.createElement('button')
+  exportBtn.textContent = 'Exportar'
+  exportBtn.title = 'Descarga todos tus presets como JSON'
+
+  const importBtn = document.createElement('button')
+  importBtn.textContent = 'Importar'
+  importBtn.title = 'Carga un archivo JSON de presets'
+
+  const importInput = document.createElement('input')
+  importInput.type = 'file'
+  importInput.accept = 'application/json,.json'
+  importInput.style.display = 'none'
+
+  ioGroup.appendChild(exportBtn)
+  ioGroup.appendChild(importBtn)
+  ioGroup.appendChild(importInput)
+  userPresetsRow.appendChild(ioGroup)
+
+  function snapshotCurrentParams() {
+    return {
+      waveform: synthParams.waveform,
+      attack: synthParams.attack,
+      decay: synthParams.decay,
+      sustain: synthParams.sustain,
+      release: synthParams.release,
+      filterCutoff: synthParams.filterCutoff,
+      filterResonance: synthParams.filterResonance,
+      volume: synthParams.volume,
+    }
+  }
+
+  function renderUserPresetsList() {
+    userPresetsList.innerHTML = ''
+    const presets = loadUserPresets()
+    if (presets.length === 0) {
+      const empty = document.createElement('span')
+      empty.className = 'user-presets-empty'
+      empty.textContent = 'Sin presets guardados'
+      userPresetsList.appendChild(empty)
+      return
+    }
+    for (const preset of presets) {
+      const item = document.createElement('span')
+      item.className = 'user-preset-item'
+
+      const loadBtn = document.createElement('button')
+      loadBtn.className = 'user-preset-load'
+      loadBtn.textContent = preset.name
+      loadBtn.title = `Cargar "${preset.name}"`
+      loadBtn.addEventListener('click', () => applyPreset(preset.params))
+
+      const delBtn = document.createElement('button')
+      delBtn.className = 'user-preset-del'
+      delBtn.textContent = '✕'
+      delBtn.title = `Borrar "${preset.name}"`
+      delBtn.addEventListener('click', () => {
+        if (!confirm(`¿Borrar el preset "${preset.name}"?`)) return
+        deleteUserPreset(preset.id)
+        renderUserPresetsList()
+      })
+
+      item.appendChild(loadBtn)
+      item.appendChild(delBtn)
+      userPresetsList.appendChild(item)
+    }
+  }
+
+  saveUserBtn.addEventListener('click', () => {
+    const name = (prompt('Nombre del preset:') ?? '').trim()
+    if (!name) return
+    saveUserPreset(name, snapshotCurrentParams())
+    renderUserPresetsList()
+  })
+
+  exportBtn.addEventListener('click', () => {
+    const json = exportPresetsJson()
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `synth-presets-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  })
+
+  importBtn.addEventListener('click', () => importInput.click())
+
+  importInput.addEventListener('change', async () => {
+    const file = importInput.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const { added, errors } = importPresetsJson(text)
+      renderUserPresetsList()
+      const summary = `${added} preset${added === 1 ? '' : 's'} importado${added === 1 ? '' : 's'}`
+      const errorSummary = errors.length ? `\n${errors.length} error${errors.length === 1 ? '' : 'es'} ignorado${errors.length === 1 ? '' : 's'}` : ''
+      alert(summary + errorSummary)
+    } catch {
+      alert('No se pudo leer el archivo.')
+    } finally {
+      importInput.value = ''
+    }
+  })
+
+  renderUserPresetsList()
 
   // Botón de grabación
   const recordingGroup = document.createElement('div')
@@ -505,16 +644,21 @@ export function renderPresetsAndRecording(container) {
   })
 }
 
-// Aplica un preset al synth y sincroniza el DOM
+// Aplica un preset (params puros del synth) al motor de audio y sincroniza el DOM
 function applyPreset(preset) {
-  setWaveform(preset.waveform)
-  Object.assign(synthParams, preset)
-  setFilterCutoff(preset.filterCutoff)
-  setFilterResonance(preset.filterResonance)
-  setSynthVolume(preset.volume)
+  if (!preset) return
+  if (preset.waveform !== undefined) setWaveform(preset.waveform)
+  if (preset.attack !== undefined) synthParams.attack = preset.attack
+  if (preset.decay !== undefined) synthParams.decay = preset.decay
+  if (preset.sustain !== undefined) synthParams.sustain = preset.sustain
+  if (preset.release !== undefined) synthParams.release = preset.release
+  if (preset.filterCutoff !== undefined) setFilterCutoff(preset.filterCutoff)
+  if (preset.filterResonance !== undefined) setFilterResonance(preset.filterResonance)
+  if (preset.volume !== undefined) setSynthVolume(preset.volume)
 
-  // Sincronizar sliders DOM
+  // Sincronizar sliders DOM (sólo los campos definidos en el preset)
   const set = (id, value) => {
+    if (value === undefined) return
     const el = document.getElementById(id)
     if (!el) return
     el.value = value
@@ -529,9 +673,11 @@ function applyPreset(preset) {
   set('filter-resonance', preset.filterResonance)
   set('synth-volume', preset.volume)
 
-  document.querySelectorAll('#waveform-toggle button').forEach(btn => {
-    btn.classList.toggle('btn-active', btn.dataset.value === preset.waveform)
-  })
+  if (preset.waveform !== undefined) {
+    document.querySelectorAll('#waveform-toggle button').forEach(btn => {
+      btn.classList.toggle('btn-active', btn.dataset.value === preset.waveform)
+    })
+  }
 }
 
 export function renderMixerControls(container) {

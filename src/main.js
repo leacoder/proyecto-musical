@@ -5,7 +5,7 @@ import { stop as stopSequencer } from './audio/sequencer.js'
 import { setDrumVolume, setDrumBusVolume, setDrumReverbSend, setDrumDelaySend, DRUM_NAMES } from './audio/drums.js'
 import { renderKeyboard } from './ui/keyboard.js'
 import { renderSynthControls, renderEffectsControls, renderDrumControls, renderMixerControls, renderPresetsAndRecording } from './ui/controls.js'
-import { renderSequencer } from './ui/grid.js'
+import { renderSequencer, sequencerUIRefresh } from './ui/grid.js'
 import { renderScope } from './ui/scope.js'
 import { loadState, applyLoadedState, scheduleSave, urlHashToState } from './state/persistence.js'
 
@@ -165,15 +165,17 @@ function syncDomSliders(saved) {
     if (bpmRange) bpmRange.value = saved.sequencer.bpm
   }
 
-  // Actualizar grilla del secuenciador
-  if (saved.sequencer?.pattern) {
-    for (let t = 0; t < saved.sequencer.pattern.length; t++) {
-      for (let s = 0; s < saved.sequencer.pattern[t].length; s++) {
-        const btn = document.querySelector(`.seq-step[data-track="${t}"][data-step="${s}"]`)
-        if (btn) {
-          btn.classList.toggle('seq-step-on', saved.sequencer.pattern[t][s])
-        }
-      }
+  if (saved.sequencer?.swing !== undefined) {
+    const swingInput = document.getElementById('seq-swing')
+    if (swingInput) {
+      swingInput.value = saved.sequencer.swing
+      swingInput.dispatchEvent(new Event('input', { bubbles: false }))
     }
   }
+
+  // Refresca UI del sequencer (tabs, chain, modo) y redibuja la grilla del editing
+  sequencerUIRefresh.refreshTabs()
+  sequencerUIRefresh.refreshMode()
+  sequencerUIRefresh.refreshChain()
+  sequencerUIRefresh.redrawGrid()
 }

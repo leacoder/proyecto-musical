@@ -7,6 +7,9 @@ export const DRUM_NAMES = ['kick', 'snare', 'hihat', 'clap']
 // Volúmenes individuales (0–1)
 const drumVolumes = { kick: 0.8, snare: 0.7, hihat: 0.5, clap: 0.6 }
 
+// Multiplicadores de velocity por valor de step (0=off, 1=normal, 2=accent)
+export const VELOCITY_FOR_STEP = [0, 1.0, 1.3]
+
 // Bus de salida para cada drum → se mezclan en drumBus → masterInput
 let drumBus = null
 let drumBusGain = null
@@ -76,7 +79,7 @@ function createNoiseBuffer(context, durationSeconds = 0.5) {
 
 // ── Kick ──────────────────────────────────────────────────────────────────────
 // Oscilador sine con pitch envelope rápido + gain envelope
-export function triggerKick(scheduledTime) {
+export function triggerKick(scheduledTime, velocity = 1) {
   const context = getAudioContext()
   const time = scheduledTime ?? context.currentTime
   const destination = getDrumBus()
@@ -89,7 +92,7 @@ export function triggerKick(scheduledTime) {
   oscillator.frequency.setValueAtTime(180, time)
   oscillator.frequency.exponentialRampToValueAtTime(40, time + 0.06)
 
-  gainNode.gain.setValueAtTime(drumVolumes.kick, time)
+  gainNode.gain.setValueAtTime(drumVolumes.kick * velocity, time)
   gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.5)
 
   oscillator.connect(gainNode)
@@ -103,7 +106,7 @@ export function triggerKick(scheduledTime) {
 
 // ── Snare ─────────────────────────────────────────────────────────────────────
 // Ruido blanco + filtro bandpass + transiente de tono
-export function triggerSnare(scheduledTime) {
+export function triggerSnare(scheduledTime, velocity = 1) {
   const context = getAudioContext()
   const time = scheduledTime ?? context.currentTime
   const destination = getDrumBus()
@@ -118,7 +121,7 @@ export function triggerSnare(scheduledTime) {
   bandpass.Q.value = 0.8
 
   const noiseGain = context.createGain()
-  noiseGain.gain.setValueAtTime(drumVolumes.snare, time)
+  noiseGain.gain.setValueAtTime(drumVolumes.snare * velocity, time)
   noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.25)
 
   noiseBuffer.connect(bandpass)
@@ -132,7 +135,7 @@ export function triggerSnare(scheduledTime) {
   toneOsc.frequency.exponentialRampToValueAtTime(100, time + 0.05)
 
   const toneGain = context.createGain()
-  toneGain.gain.setValueAtTime(drumVolumes.snare * 0.5, time)
+  toneGain.gain.setValueAtTime(drumVolumes.snare * velocity * 0.5, time)
   toneGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1)
 
   toneOsc.connect(toneGain)
@@ -149,7 +152,7 @@ export function triggerSnare(scheduledTime) {
 
 // ── Hi-hat ────────────────────────────────────────────────────────────────────
 // Ruido blanco + highpass agresivo + envelope muy corto
-export function triggerHihat(scheduledTime) {
+export function triggerHihat(scheduledTime, velocity = 1) {
   const context = getAudioContext()
   const time = scheduledTime ?? context.currentTime
   const destination = getDrumBus()
@@ -163,7 +166,7 @@ export function triggerHihat(scheduledTime) {
   highpass.Q.value = 1
 
   const gainNode = context.createGain()
-  gainNode.gain.setValueAtTime(drumVolumes.hihat, time)
+  gainNode.gain.setValueAtTime(drumVolumes.hihat * velocity, time)
   gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.08)
 
   noiseBuffer.connect(highpass)
@@ -178,7 +181,7 @@ export function triggerHihat(scheduledTime) {
 
 // ── Clap ──────────────────────────────────────────────────────────────────────
 // 3 ráfagas de ruido en cascada rápida para simular múltiples manos
-export function triggerClap(scheduledTime) {
+export function triggerClap(scheduledTime, velocity = 1) {
   const context = getAudioContext()
   const time = scheduledTime ?? context.currentTime
   const destination = getDrumBus()
@@ -196,7 +199,7 @@ export function triggerClap(scheduledTime) {
 
     const gainNode = context.createGain()
     const burstTime = time + offset
-    gainNode.gain.setValueAtTime(drumVolumes.clap, burstTime)
+    gainNode.gain.setValueAtTime(drumVolumes.clap * velocity, burstTime)
     gainNode.gain.exponentialRampToValueAtTime(0.001, burstTime + 0.07)
 
     noiseBuffer.connect(bandpass)

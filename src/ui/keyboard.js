@@ -1,11 +1,8 @@
 import { startNote, stopNote } from '../audio/synth.js'
 
-// Teclado de 2 octavas: C3 (MIDI 48) a B4 (MIDI 71)
-const KEYBOARD_START_MIDI = 48  // C3
-const KEYBOARD_END_MIDI = 71    // B4
-
-// Mapeo de teclas físicas a notas MIDI (orden cromático)
-// A W S E D F T G Y H U J K = C D E F G A B C D E F G (2 octavas)
+// Mapeo de teclas físicas a notas MIDI
+// Octava 1 (A–K): C3–C4 con teclas negras (W E T Y U)
+// Octava 2 (X–.): C4–C5 sólo teclas blancas
 const KEY_TO_MIDI = {
   'a': 48,  // C3
   'w': 49,  // C#3
@@ -20,11 +17,20 @@ const KEY_TO_MIDI = {
   'u': 58,  // A#3
   'j': 59,  // B3
   'k': 60,  // C4
-  'o': 61,  // C#4
-  'l': 62,  // D4
-  'p': 63,  // D#4
-  ';': 64,  // E4
+  'x': 60,  // C4
+  'c': 62,  // D4
+  'v': 64,  // E4
+  'b': 65,  // F4
+  'n': 67,  // G4
+  'm': 69,  // A4
+  ',': 71,  // B4
+  '.': 72,  // C5
 }
+
+const OCTAVES = [
+  { start: 48, end: 60, label: 'A W S E D F T G Y H U J K' },
+  { start: 60, end: 72, label: 'X C V B N M , .' },
+]
 
 // Qué notas son sostenidos (teclas negras)
 const BLACK_NOTES = new Set([1, 3, 6, 8, 10]) // offset desde cada C
@@ -36,39 +42,56 @@ function isBlackKey(midiNote) {
 // Teclas presionadas actualmente (para evitar repetición de keydown)
 const pressedKeys = new Set()
 
-let keyboardElement = null
-// Mapa de midiNote → elemento DOM de tecla
+// Mapa de midiNote → elemento DOM de tecla (puede haber múltiples si la nota aparece en dos octavas)
 const keyElements = new Map()
 
-export function renderKeyboard(container) {
-  keyboardElement = document.createElement('div')
-  keyboardElement.className = 'keyboard'
-  keyboardElement.setAttribute('role', 'group')
-  keyboardElement.setAttribute('aria-label', 'Teclado virtual')
+function renderOctave(container, start, end, label) {
+  const group = document.createElement('div')
+  group.className = 'keyboard-group'
 
-  for (let midi = KEYBOARD_START_MIDI; midi <= KEYBOARD_END_MIDI; midi++) {
+  const labelEl = document.createElement('div')
+  labelEl.className = 'keyboard-group-label'
+  labelEl.textContent = label
+
+  const keyboard = document.createElement('div')
+  keyboard.className = 'keyboard'
+  keyboard.setAttribute('role', 'group')
+  keyboard.setAttribute('aria-label', label)
+
+  for (let midi = start; midi <= end; midi++) {
     const key = document.createElement('button')
     key.className = isBlackKey(midi) ? 'key key-black' : 'key key-white'
     key.dataset.midi = midi
     key.setAttribute('aria-label', midiToNoteName(midi))
     key.setAttribute('tabindex', '-1')
 
-    key.addEventListener('mousedown', (e) => {
+    key.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
       e.preventDefault()
       pressKey(midi)
     })
 
-    key.addEventListener('mouseup', () => releaseKey(midi))
-    key.addEventListener('mouseleave', () => releaseKey(midi))
-    // Touch
-    key.addEventListener('touchstart', (e) => { e.preventDefault(); pressKey(midi) }, { passive: false })
-    key.addEventListener('touchend', (e) => { e.preventDefault(); releaseKey(midi) }, { passive: false })
+    const release = () => releaseKey(midi)
+    key.addEventListener('pointerup', release)
+    key.addEventListener('pointerleave', release)
+    key.addEventListener('pointercancel', release)
 
-    keyboardElement.appendChild(key)
-    keyElements.set(midi, key)
+    key.addEventListener('contextmenu', (e) => e.preventDefault())
+
+    keyboard.appendChild(key)
+    // Si la nota ya tiene elemento (C4 aparece en ambas octavas), guardar el primero
+    if (!keyElements.has(midi)) keyElements.set(midi, key)
   }
 
-  container.appendChild(keyboardElement)
+  group.appendChild(labelEl)
+  group.appendChild(keyboard)
+  container.appendChild(group)
+}
+
+export function renderKeyboard(container) {
+  for (const { start, end, label } of OCTAVES) {
+    renderOctave(container, start, end, label)
+  }
   attachKeyboardListeners()
 }
 
@@ -86,7 +109,6 @@ function releaseKey(midiNote) {
 
 function attachKeyboardListeners() {
   document.addEventListener('keydown', (e) => {
-    // Ignorar si el foco está en un input/select
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return
     if (e.repeat) return
 

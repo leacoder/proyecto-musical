@@ -27,7 +27,9 @@
   --color-step-off: #1a1a1a;
   --color-step-on: #5b5bd6;
   --color-step-playing: #9090e8;
-  --color-step-accent: #222244;
+  --color-step-downbeat: #222244;        /* fondo cada 4 pasos (guía visual) */
+  --color-step-accent-fill: #d97c3a;     /* fondo de step con accent del usuario */
+  --color-step-accent-border: #ffb454;
 
   /* Tipografía */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -48,6 +50,9 @@
   --r-sm: 4px;
   --r-md: 6px;
   --r-lg: 10px;
+
+  /* Target táctil (Apple HIG: 44pt; Material: 48dp) */
+  --touch-target: 44px;
 }
 
 /* Reset */
@@ -69,6 +74,11 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Permitir scroll vertical pero matar el double-tap zoom y los gestos extra */
+  touch-action: manipulation;
+  /* Respeta notches / safe areas en iOS */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* ────────────── Overlay de activación ────────────── */
@@ -256,6 +266,8 @@ input[type="range"] {
   background: var(--color-surface-3);
   outline: none;
   cursor: pointer;
+  /* En touch el slider se arrastra horizontal; matamos el scroll en otros ejes */
+  touch-action: none;
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -280,6 +292,33 @@ input[type="range"]::-moz-range-thumb {
   background: var(--color-accent);
   cursor: pointer;
   border: none;
+}
+
+/* En dispositivos táctiles (mobile, tablet, stylus) el thumb crece para
+   superar el target mínimo de 44px y el track engruesa. */
+@media (pointer: coarse) {
+  input[type="range"] {
+    height: 8px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+  }
+
+  button {
+    min-height: var(--touch-target);
+    padding: var(--sp-2) var(--sp-4);
+  }
+
+  .toggle-group button {
+    min-height: var(--touch-target);
+  }
 }
 
 /* ────────────── Select ────────────── */
@@ -337,6 +376,20 @@ select:hover {
 }
 
 /* ────────────── Teclado virtual ────────────── */
+.keyboard-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.keyboard-group-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .keyboard {
   display: flex;
   position: relative;
@@ -370,6 +423,11 @@ select:hover {
   transition: background 0.05s, transform 0.05s;
   outline: none;
   padding: 0;
+  /* Sin scroll/zoom de la página al tocar y deslizar entre teclas */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .key-white {
@@ -429,6 +487,8 @@ select:hover {
   background: var(--color-surface-2);
   border: 1px solid var(--color-border-2);
   transition: background 0.05s, transform 0.05s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .drum-pad:hover {
@@ -522,22 +582,213 @@ select:hover {
   padding: 0;
   min-width: 0;
   transition: background 0.07s;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-/* Acento visual cada 4 pasos */
-.seq-step-accent {
-  background: var(--color-step-accent);
+/* Downbeat visual cada 4 pasos (no es un estado del pattern, solo guía) */
+.seq-step-downbeat {
+  background: var(--color-step-downbeat);
   border-color: #333355;
+}
+
+/* Indicador visual de swing en el header */
+.seq-swing-value {
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Tabs de patterns (A/B/C…) ── */
+.pattern-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.pattern-tabs {
+  display: flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.pattern-tab {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.pattern-tab-label {
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 32px;
+}
+
+.pattern-tab-label:hover {
+  background: var(--color-surface-3);
+}
+
+.pattern-tab-close {
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  padding: 0 var(--sp-2);
+  font-size: 10px;
+  min-width: 22px;
+}
+
+.pattern-tab-close:hover {
+  background: rgba(229, 72, 77, 0.12);
+  color: var(--color-danger);
+}
+
+.pattern-tab-active .pattern-tab-label {
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+.pattern-tab-playing {
+  box-shadow: 0 0 0 2px var(--color-step-playing);
+}
+
+.pattern-actions {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+/* ── Panel Song (chain de patterns) ── */
+.song-panel {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.song-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.song-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.song-mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.song-mode-toggle button {
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 11px;
+}
+
+.song-mode-toggle button + button {
+  border-left: 1px solid var(--color-border);
+}
+
+.song-chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.song-chain-list-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.song-chain-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.song-chain-item select {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  min-width: 60px;
+}
+
+.song-chain-x {
+  color: var(--color-text-dim);
+  font-family: var(--font-mono);
+}
+
+.song-chain-repeats {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  width: 56px;
+  text-align: center;
+  outline: none;
+}
+
+.song-chain-move,
+.song-chain-remove {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: 11px;
+  min-width: 28px;
+}
+
+.song-chain-move:disabled,
+.song-chain-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.song-add-step {
+  font-size: 11px;
 }
 
 .seq-step:hover {
   background: var(--color-surface-3);
 }
 
-/* Paso activado en el patrón */
+/* Paso activado en el patrón (velocity normal) */
 .seq-step-on {
   background: var(--color-step-on) !important;
   border-color: var(--color-step-on) !important;
+}
+
+/* Paso con accent (velocity reforzada) — borde brillante + glow interior */
+.seq-step-on.seq-step-accent {
+  background: var(--color-step-accent-fill) !important;
+  border-color: var(--color-step-accent-border) !important;
+  box-shadow: inset 0 0 0 1px var(--color-step-accent-border),
+              0 0 6px rgba(255, 200, 90, 0.35);
 }
 
 /* Paso actualmente reproduciendo (indicador de posición) */
@@ -574,6 +825,64 @@ select:hover {
   white-space: nowrap;
 }
 
+/* ── Biblioteca de presets del usuario ── */
+.user-presets-row {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.user-presets-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.user-presets-empty {
+  font-size: 11px;
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+
+.user-preset-item {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.user-preset-load {
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-2);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: 12px;
+}
+
+.user-preset-load:hover {
+  background: var(--color-surface-3);
+}
+
+.user-preset-del {
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  padding: 0 var(--sp-2);
+  font-size: 11px;
+  min-width: 24px;
+}
+
+.user-preset-del:hover {
+  background: rgba(229, 72, 77, 0.12);
+  color: var(--color-danger);
+}
+
 /* ────────────── Osciloscopio ────────────── */
 .scope-section {
   padding: var(--sp-4) var(--sp-6);
@@ -597,45 +906,118 @@ select:hover {
 @media (max-width: 768px) {
   #app-header {
     padding: var(--sp-3) var(--sp-4);
+    height: auto;
+    min-height: 52px;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
   }
 
   #app-main {
-    padding: var(--sp-4);
-    gap: var(--sp-4);
+    padding: var(--sp-3);
+    gap: var(--sp-3);
+    padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom));
   }
 
   .section {
-    padding: var(--sp-4);
+    padding: var(--sp-3);
+  }
+
+  .section-title {
+    margin-bottom: var(--sp-3);
   }
 
   .controls-grid {
     grid-template-columns: 1fr;
+    gap: var(--sp-4);
   }
 
   .effects-grid {
     grid-template-columns: 1fr;
   }
 
+  .adsr-grid {
+    gap: var(--sp-3);
+  }
+
+  /* Sequencer: pasos más altos para tap fiable, gap mínimo */
   .seq-steps-row {
     gap: 2px;
   }
 
   .seq-step {
-    height: 26px;
+    height: 40px;
+    min-width: 0;
   }
 
+  .seq-header {
+    gap: var(--sp-2);
+  }
+
+  .seq-bpm-range,
+  #seq-swing {
+    width: 100px;
+  }
+
+  /* Drum pads: 2 por fila, más altos para tap cómodo */
+  .drum-pads {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-3);
+  }
+
+  .drum-col {
+    max-width: none;
+    min-width: 0;
+  }
+
+  .drum-pad {
+    height: 72px;
+    font-size: 14px;
+  }
+
+  /* Teclado: scroll horizontal con teclas anchas para tap */
   .keyboard {
-    height: 90px;
+    height: 130px;
+    gap: 2px;
   }
 
   .key-white {
-    width: 28px;
-    height: 86px;
+    width: 40px;
+    height: 126px;
   }
 
   .key-black {
-    width: 18px;
-    height: 54px;
-    margin: 0 -9px;
+    width: 26px;
+    height: 78px;
+    margin: 0 -13px;
+  }
+
+  /* Presets y mixer: filas full-width */
+  .presets-row {
+    gap: var(--sp-3);
+  }
+
+  .presets-group,
+  .recording-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Footer del header: botón de pánico ocupa min-height táctil */
+  #btn-panic {
+    min-height: var(--touch-target);
+  }
+}
+
+@media (max-width: 380px) {
+  .seq-step {
+    height: 36px;
+  }
+  .key-white {
+    width: 34px;
+  }
+  .key-black {
+    width: 22px;
+    margin: 0 -11px;
   }
 }
