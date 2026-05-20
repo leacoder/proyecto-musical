@@ -7,12 +7,14 @@ import {
   setSynthReverbSend,
   setSynthDelaySend,
 } from '../audio/synth.js'
+import { getMasterGain, getAudioContext, getRecordingDestination } from '../audio/context.js'
 import {
   setReverbWet,
   setDelayWet,
   setDelayTime,
   setDelayFeedback,
 } from '../audio/effects.js'
+import { stateToUrlHash } from '../state/persistence.js'
 import {
   DRUM_NAMES,
   DRUM_TRIGGERS,
@@ -360,8 +362,176 @@ export function renderDrumControls(container) {
   })
 }
 
-export function renderEffectsSends(container) {
-  // Agrega sends de drums a la sección de efectos existente (se llama desde renderEffectsControls)
+// ── Presets ─────────────────────────────────────────────────────────────────
+const PRESETS = {
+  bass: {
+    waveform: 'sawtooth',
+    attack: 0.005,
+    decay: 0.2,
+    sustain: 0.5,
+    release: 0.3,
+    filterCutoff: 600,
+    filterResonance: 3,
+    volume: 0.8,
+  },
+  lead: {
+    waveform: 'square',
+    attack: 0.01,
+    decay: 0.1,
+    sustain: 0.7,
+    release: 0.2,
+    filterCutoff: 3000,
+    filterResonance: 2,
+    volume: 0.65,
+  },
+  pad: {
+    waveform: 'sine',
+    attack: 0.6,
+    decay: 0.5,
+    sustain: 0.8,
+    release: 1.5,
+    filterCutoff: 2000,
+    filterResonance: 0.5,
+    volume: 0.6,
+  },
+  pluck: {
+    waveform: 'triangle',
+    attack: 0.001,
+    decay: 0.4,
+    sustain: 0.1,
+    release: 0.6,
+    filterCutoff: 5000,
+    filterResonance: 4,
+    volume: 0.75,
+  },
+}
+
+export function renderPresetsAndRecording(container) {
+  const section = document.createElement('div')
+  section.className = 'section'
+
+  const title = document.createElement('div')
+  title.className = 'section-title'
+  title.textContent = 'Presets & Herramientas'
+  section.appendChild(title)
+
+  const row = document.createElement('div')
+  row.className = 'presets-row'
+  section.appendChild(row)
+
+  // Botones de presets
+  const presetsGroup = document.createElement('div')
+  presetsGroup.className = 'presets-group'
+
+  const presetsLabel = document.createElement('span')
+  presetsLabel.className = 'presets-label'
+  presetsLabel.textContent = 'Preset Synth:'
+  presetsGroup.appendChild(presetsLabel)
+
+  for (const [name, preset] of Object.entries(PRESETS)) {
+    const btn = document.createElement('button')
+    btn.textContent = name.charAt(0).toUpperCase() + name.slice(1)
+    btn.addEventListener('click', () => applyPreset(preset))
+    presetsGroup.appendChild(btn)
+  }
+
+  row.appendChild(presetsGroup)
+
+  // Botón de grabación
+  const recordingGroup = document.createElement('div')
+  recordingGroup.className = 'recording-group'
+
+  const recordBtn = document.createElement('button')
+  recordBtn.id = 'btn-record'
+  recordBtn.textContent = '⏺ Grabar'
+
+  const shareBtn = document.createElement('button')
+  shareBtn.id = 'btn-share'
+  shareBtn.textContent = '⟳ Compartir URL'
+
+  recordingGroup.appendChild(recordBtn)
+  recordingGroup.appendChild(shareBtn)
+  row.appendChild(recordingGroup)
+  container.appendChild(section)
+
+  // Lógica de grabación
+  let mediaRecorder = null
+  let recordedChunks = []
+
+  recordBtn.addEventListener('click', async () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop()
+      recordBtn.textContent = '⏺ Grabar'
+      recordBtn.classList.remove('btn-danger')
+      return
+    }
+
+    const stream = getRecordingDestination().stream
+    recordedChunks = []
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm'
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType })
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data)
+    }
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: mimeType })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `synth-session-${Date.now()}.webm`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    mediaRecorder.start()
+    recordBtn.textContent = '⏹ Detener'
+    recordBtn.classList.add('btn-danger')
+  })
+
+  // Compartir URL con estado completo en el hash
+  shareBtn.addEventListener('click', () => {
+    const hash = stateToUrlHash()
+    const url = `${window.location.origin}${window.location.pathname}#${hash}`
+    navigator.clipboard.writeText(url).then(() => {
+      shareBtn.textContent = '✓ Copiado!'
+      setTimeout(() => { shareBtn.textContent = '⟳ Compartir URL' }, 2000)
+    })
+  })
+}
+
+// Aplica un preset al synth y sincroniza el DOM
+function applyPreset(preset) {
+  setWaveform(preset.waveform)
+  Object.assign(synthParams, preset)
+  setFilterCutoff(preset.filterCutoff)
+  setFilterResonance(preset.filterResonance)
+  setSynthVolume(preset.volume)
+
+  // Sincronizar sliders DOM
+  const set = (id, value) => {
+    const el = document.getElementById(id)
+    if (!el) return
+    el.value = value
+    el.dispatchEvent(new Event('input', { bubbles: false }))
+  }
+
+  set('adsr-attack', preset.attack)
+  set('adsr-decay', preset.decay)
+  set('adsr-sustain', preset.sustain)
+  set('adsr-release', preset.release)
+  set('filter-cutoff', preset.filterCutoff)
+  set('filter-resonance', preset.filterResonance)
+  set('synth-volume', preset.volume)
+
+  document.querySelectorAll('#waveform-toggle button').forEach(btn => {
+    btn.classList.toggle('btn-active', btn.dataset.value === preset.waveform)
+  })
 }
 
 export function renderMixerControls(container) {
@@ -386,9 +556,7 @@ export function renderMixerControls(container) {
     id: 'master-volume', label: 'Volumen Master', min: 0, max: 1, step: 0.01,
     value: 0.8, displayFn: pctFn,
     onChange: (v) => {
-      import('../audio/context.js').then(({ getMasterGain, getAudioContext }) => {
-        getMasterGain().gain.setTargetAtTime(v, getAudioContext().currentTime, 0.02)
-      })
+      getMasterGain().gain.setTargetAtTime(v, getAudioContext().currentTime, 0.02)
     },
   })
 

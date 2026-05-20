@@ -551,6 +551,29 @@ select:hover {
   grid-template-columns: auto;
 }
 
+/* ────────────── Presets & Grabación ────────────── */
+.presets-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+}
+
+.presets-group, .recording-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.presets-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
 /* ────────────── Osciloscopio ────────────── */
 .scope-section {
   padding: var(--sp-4) var(--sp-6);

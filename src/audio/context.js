@@ -6,6 +6,7 @@ let masterInput = null
 let masterCompressor = null
 let masterGain = null
 let analyser = null
+let recordingDestination = null
 
 function buildAudioGraph(context) {
   // Punto de entrada para todas las voces
@@ -29,10 +30,20 @@ function buildAudioGraph(context) {
   analyser.fftSize = 2048
   analyser.smoothingTimeConstant = 0.8
 
+  // Destino de grabación (MediaStreamDestination)
+  recordingDestination = context.createMediaStreamDestination()
+
   masterInput.connect(masterCompressor)
   masterCompressor.connect(masterGain)
   masterGain.connect(analyser)
   analyser.connect(context.destination)
+  // Tap de grabación conectado post-analyser
+  analyser.connect(recordingDestination)
+}
+
+export function getRecordingDestination() {
+  getAudioContext()
+  return recordingDestination
 }
 
 export function getAudioContext() {

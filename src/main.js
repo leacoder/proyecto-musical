@@ -4,10 +4,10 @@ import { initEffects, setReverbWet, setDelayWet, setDelayTime, setDelayFeedback 
 import { stop as stopSequencer } from './audio/sequencer.js'
 import { setDrumVolume, setDrumBusVolume, setDrumReverbSend, setDrumDelaySend, DRUM_NAMES } from './audio/drums.js'
 import { renderKeyboard } from './ui/keyboard.js'
-import { renderSynthControls, renderEffectsControls, renderDrumControls, renderMixerControls } from './ui/controls.js'
+import { renderSynthControls, renderEffectsControls, renderDrumControls, renderMixerControls, renderPresetsAndRecording } from './ui/controls.js'
 import { renderSequencer } from './ui/grid.js'
 import { renderScope } from './ui/scope.js'
-import { loadState, applyLoadedState, scheduleSave } from './state/persistence.js'
+import { loadState, applyLoadedState, scheduleSave, urlHashToState } from './state/persistence.js'
 
 const overlay = document.getElementById('overlay')
 const btnPanic = document.getElementById('btn-panic')
@@ -48,15 +48,14 @@ renderDrumControls(document.getElementById('drums-root'))
 renderSequencer(document.getElementById('sequencer-root'))
 renderEffectsControls(document.getElementById('effects-root'))
 renderMixerControls(document.getElementById('mixer-root'))
+renderPresetsAndRecording(document.getElementById('mixer-root'))
 renderScope(document.getElementById('scope-root'))
 
-// Carga estado desde localStorage o URL hash (sin top-level await)
-;(async () => {
+// Carga estado desde localStorage o URL hash
 const hashState = window.location.hash.slice(1)
 let savedState = null
 
 if (hashState) {
-  const { urlHashToState } = await import('./state/persistence.js')
   savedState = urlHashToState(hashState)
 }
 

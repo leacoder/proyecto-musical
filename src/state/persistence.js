@@ -1,29 +1,32 @@
-import { getState } from './store.js'
 import { synthParams } from '../audio/synth.js'
 import { getPattern, setBpm, setStep, getBpm } from '../audio/sequencer.js'
-import { setDrumVolume } from '../audio/drums.js'
-import { DRUM_NAMES } from '../audio/drums.js'
+import { setDrumVolume, getDrumVolumes, DRUM_NAMES } from '../audio/drums.js'
+import { getEffectsSnapshot } from '../audio/effects.js'
+import { getMasterGain } from '../audio/context.js'
 
 const STORAGE_KEY = 'synth-app-state-v1'
 
-export function saveState() {
+function buildSnapshot() {
   const pattern = getPattern()
-  const state = getState()
-
-  const snapshot = {
+  return {
     synth: { ...synthParams },
-    drums: { ...state.drums },
-    effects: { ...state.effects },
-    master: { ...state.master },
+    drums: {
+      volumes: getDrumVolumes(),
+    },
+    effects: getEffectsSnapshot(),
+    master: {
+      volume: getMasterGain() ? getMasterGain().gain.value : 0.8,
+    },
     sequencer: {
       bpm: getBpm(),
-      // Copia profunda del patrón
       pattern: pattern.map(track => [...track]),
     },
   }
+}
 
+export function saveState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(buildSnapshot()))
   } catch {
     // Ignorar errores de storage (modo privado, cuota, etc.)
   }
@@ -64,12 +67,11 @@ export function applyLoadedState(saved, applyToAudio) {
     }
   }
 
-  // El resto (synth params, effects, master) lo aplica el caller
-  // porque necesita acceso a los nodos de audio ya inicializados
+  // El resto lo aplica el caller (necesita nodos de audio)
   if (applyToAudio) applyToAudio(saved)
 }
 
-// Autoguarda cada vez que hay un cambio relevante (debounced)
+// Autoguarda con debounce tras cada cambio de input
 let saveTimer = null
 export function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer)
@@ -78,19 +80,7 @@ export function scheduleSave() {
 
 // Serializa el estado completo como base64 para compartir por URL
 export function stateToUrlHash() {
-  const pattern = getPattern()
-  const state = getState()
-  const snapshot = {
-    synth: { ...synthParams },
-    drums: { ...state.drums },
-    effects: { ...state.effects },
-    master: { ...state.master },
-    sequencer: {
-      bpm: getBpm(),
-      pattern: pattern.map(track => [...track]),
-    },
-  }
-  const json = JSON.stringify(snapshot)
+  const json = JSON.stringify(buildSnapshot())
   return btoa(unescape(encodeURIComponent(json)))
 }
 

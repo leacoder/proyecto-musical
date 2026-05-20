@@ -85,6 +85,16 @@ export function initEffects() {
   buildDelayChain()
 }
 
+// Devuelve el estado actual de los efectos para persistencia
+export function getEffectsSnapshot() {
+  return {
+    reverbWet: reverbWetGain ? reverbWetGain.gain.value : 0,
+    delayWet: delayWetGain ? delayWetGain.gain.value : 0,
+    delayTime: delayNode ? delayNode.delayTime.value : 0.375,
+    delayFeedback: delayFeedbackGain ? delayFeedbackGain.gain.value : 0.35,
+  }
+}
+
 export function setReverbWet(value) {
   if (!reverbWetGain) buildReverbChain()
   reverbWetGain.gain.setTargetAtTime(value, getAudioContext().currentTime, 0.02)

@@ -59,6 +59,10 @@ export function getDrumVolume(name) {
   return drumVolumes[name]
 }
 
+export function getDrumVolumes() {
+  return { ...drumVolumes }
+}
+
 // Genera un buffer de ruido blanco monoaural
 function createNoiseBuffer(context, durationSeconds = 0.5) {
   const length = Math.floor(context.sampleRate * durationSeconds)
